@@ -1,0 +1,14 @@
+{
+    "cmake.cmakePath": "D:/Files/CMake/bin/cmake.exe",
+    "cmake.generator": "MinGW Makefiles",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.configureOnOpen": false,
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/glm",
+        "${workspaceFolder}/minifb/include"
+    ],
+    "editor.inlineSuggest.enabled": true
+}
