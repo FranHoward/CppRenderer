@@ -1,27 +1,27 @@
 # C++Renderer
 
-这是一个基于用户指定模板搭建的 C++17 渲染器起始项目。
+This is a starter C++17 renderer project built from a user-provided template.
 
-项目已内置：
+The project includes:
 
-- GLM 1.0.3（头文件库）
-- MiniFB 0.10.1（窗口与像素缓冲显示）
-- CMake 构建配置
+- GLM 1.0.3 (header-only mathematics library)
+- MiniFB 0.10.1 (window and pixel-buffer display)
+- CMake build configuration
 
-## Windows 构建
+## Building on Windows
 
-先安装 CMake，并确保 `cmake`、`gcc` 和 `g++` 已加入 `PATH`。然后双击 `build.bat`，或在终端中运行：
+Install CMake and ensure that `cmake`, `gcc`, and `g++` are available in your `PATH`. Then double-click `build.bat`, or run the following command in a terminal:
 
 ```powershell
 .\build.bat
 ```
 
-生成的程序位于 `build\C++Renderer.exe`。
+The generated executable is located at `build\C++Renderer.exe`.
 
-## Linux / macOS 构建
+## Building on Linux or macOS
 
 ```sh
 ./build.sh
 ```
 
-入口文件是 `source/main.cpp`。当前示例使用 GLM 计算颜色，并通过 MiniFB 显示渐变画面。
+The application entry point is `source/main.cpp`. The current example uses GLM for color calculations and MiniFB to display a gradient.
