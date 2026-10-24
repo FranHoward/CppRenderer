@@ -1,5 +1,6 @@
 #include "Common.h"
 #include <atomic>
+#include "Camera.h"
 
 class Renderer
 {
@@ -17,4 +18,6 @@ class Renderer
         uint32_t* mBuffer = nullptr;
         
         std::atomic<int> mCurrentPixelIndex = 0;
+
+        Camera mCamera;
 };

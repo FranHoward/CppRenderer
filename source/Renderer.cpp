@@ -7,6 +7,17 @@ Renderer::Renderer(int viewportWidth, int viewportHeight)
     : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight)
 {
     mCurrentPixelIndex = 0;
+
+    mCamera.Initialize(
+        Vector3f(0.0f, 0.0f, 5.0f),  // Camera position
+        Vector3f(0.0f, 0.0f, 0.0f),  // Target position
+        Vector3f(0.0f, 1.0f, 0.0f),  // Up vector
+        45.0f,                       // Field of view in degrees
+        0.1f,                        // Near plane
+        100.0f,                      // Far plane
+        (float)mViewportWidth,       // Viewport width
+        (float)mViewportHeight       // Viewport height
+    );
 }
 
 void Renderer::Run()
@@ -49,6 +60,9 @@ void Renderer::Run()
 
 Color Renderer::RenderPixel(int x, int y)
 {
+    // Get the ray for the current pixel
+    Ray ray = mCamera.GetRay(x, y);
+
     Color color;
     color.r = (float) x / mViewportWidth;
     color.g = (float) y / mViewportHeight;
