@@ -10,5 +10,6 @@
         "${workspaceFolder}/glm",
         "${workspaceFolder}/minifb/include"
     ],
-    "editor.inlineSuggest.enabled": true
+    "editor.inlineSuggest.enabled": true,
+    "editor.cursorStyle": "line"
 }

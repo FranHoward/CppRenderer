@@ -15,7 +15,7 @@ void Camera::Initialize(const Vector3f& position, const Vector3f& target,
     // Find the viewport matrix using the viewport dimensions
     Matrix4x4 viewportMatrix = glm::mat4(
         w / 2.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, h / 2.0f, 0.0f, 0.0f,
+        0.0f, -h / 2.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         w / 2.0f, h / 2.0f, 0.0f, 1.0f
     );
@@ -28,7 +28,7 @@ void Camera::Initialize(const Vector3f& position, const Vector3f& target,
     mInverseCombinedMatrix = inverseCombinedMatrix;
  }
 
-Ray Camera::GetRay(int x, int y) const
+Ray Camera::GetRay(float x, float y) const
 {
     Ray ray;
     ray.o = mPosition;

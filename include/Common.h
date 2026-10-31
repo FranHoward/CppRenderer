@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/ext.hpp>
@@ -19,6 +20,7 @@ using Matrix4x4 = glm::mat4;
 using Color = glm::vec3;
 
 const float PI = glm::pi<float>();
+const float INV_PI = 1.0f / PI;
 
 // Print a Vector3f to the console
 inline void PrintVector(const Vector3f& v) {
@@ -109,4 +111,26 @@ inline Matrix3x3 MakeCoordinateSystem(const Vector3f& w)
     v = glm::normalize(v);
 
     return Matrix3x3(u, v, w);
+}
+
+inline float Random01()
+{
+    thread_local static std::mt19937 generator(std::random_device{}());
+    thread_local static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+    return distribution(generator);
+}
+
+inline float Random(float a, float b)
+{
+    return a + (b - a) * Random01();
+}
+
+inline Vector3f GetSphericalCoordinate(float theta, float phi)
+{
+    float sinTheta = sinf(theta);
+    return Vector3f(
+        sinTheta * cosf(phi),
+        sinTheta * sinf(phi),
+        cosf(theta)
+    );
 }

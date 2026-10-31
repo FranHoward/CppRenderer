@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scene>
+    <Camera position="0 0 -5" target="0 0 1" up="0 1 0"
+            fov="45" near="0.1" far="100"/>
+
+    <!-- Object-space vertices. Rotations are Euler angles in degrees. -->
+    <!-- Two triangles form the original square at z = 5, with uniform scale 2. -->
+    <SceneObject position="0 0 5" rotation="0 0 0" scale="2">
+        <Triangle v0="-1 -1 0" v1="1 -1 0" v2="1 1 0"/>
+        <Triangle v0="-1 -1 0" v1="1 1 0" v2="-1 1 0"/>
+    </SceneObject>
+
+    <!-- The original sphere, in front of the square. -->
+    <SceneObject position="0 0 2" rotation="0 0 0" scale="1">
+        <Sphere radius="0.5"/>
+    </SceneObject>
+</Scene>

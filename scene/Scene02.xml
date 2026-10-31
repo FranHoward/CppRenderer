@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scene>
+    <Camera position="0 0 -6" target="0 0 1" up="0 1 0"
+            fov="40" near="0.1" far="100"/>
+
+    <Materials>
+        <!-- Linear RGB diffuse reflectance. Lambert BRDF = albedo / pi. -->
+        <LambertMaterial name="RedLambert" albedo="0.8 0.08 0.05"/>
+        <LambertMaterial name="BlueLambert" albedo="0.05 0.15 0.8"/>
+    </Materials>
+
+    <SceneObjects>
+        <SceneObject position="-1.05 0 1" material="RedLambert">
+            <Sphere radius="0.85"/>
+        </SceneObject>
+        <SceneObject position="1.05 0 1" material="BlueLambert">
+            <Sphere radius="0.85"/>
+        </SceneObject>
+    </SceneObjects>
+
+    <Lights>
+        <PointLight position="0 3 -2" intensity="35 35 35" attenuations="1 0 1"/>
+    </Lights>
+</Scene>

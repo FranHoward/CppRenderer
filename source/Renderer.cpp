@@ -1,23 +1,23 @@
 #include "Renderer.h"
+#include "SceneObject.h"
+#include "Material.h"
 #include <MiniFB.h>
 #include <thread>
 #include <vector>
 
-Renderer::Renderer(int viewportWidth, int viewportHeight)
-    : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight)
+Renderer::Renderer(int viewportWidth, int viewportHeight, int samplesPerPixel, const char* filepath)
+    : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight), mSamplesPerPixel(samplesPerPixel)
 {
     mCurrentPixelIndex = 0;
 
-    mCamera.Initialize(
-        Vector3f(0.0f, 0.0f, 5.0f),  // Camera position
-        Vector3f(0.0f, 0.0f, 0.0f),  // Target position
-        Vector3f(0.0f, 1.0f, 0.0f),  // Up vector
-        45.0f,                       // Field of view in degrees
-        0.1f,                        // Near plane
-        100.0f,                      // Far plane
-        (float)mViewportWidth,       // Viewport width
-        (float)mViewportHeight       // Viewport height
-    );
+    mScene = Scene::LoadSceneFromXML(filepath, mViewportWidth, mViewportHeight);
+
+}
+
+Renderer::~Renderer()
+{
+    if (mScene)
+        delete mScene;
 }
 
 void Renderer::Run()
@@ -39,18 +39,18 @@ void Renderer::Run()
 
     for (int i = 0; i < numThreads; i++)
     {
-        RenderThreads[i] = std::thread(&Renderer::RunRenderThread, this);\
+        RenderThreads[i] = std::thread(&Renderer::RunRenderThread, this);
         RenderThreads[i].detach(); // Detach the thread to allow it to run independently
     }
     // Present the buffer to the window
     mfb_update_state state;
-    do 
+    do
     {
         state = mfb_update_ex(window, mBuffer, mViewportWidth, mViewportHeight);
 
         if (state != MFB_STATE_OK)
             break;
-    }  
+    }
     while (mfb_wait_sync(window));
 
     free(mBuffer);
@@ -60,13 +60,99 @@ void Renderer::Run()
 
 Color Renderer::RenderPixel(int x, int y)
 {
-    // Get the ray for the current pixel
-    Ray ray = mCamera.GetRay(x, y);
+    // SSAA
+    static const int samplesPerPixel = 4;
+    Color resultColor = Color(0.0f, 0.0f, 0.0f);
 
-    Color color;
-    color.r = (float) x / mViewportWidth;
-    color.g = (float) y / mViewportHeight;
-    color.b = 0.0f;
+    for (int i = 0; i < samplesPerPixel; i++)
+    {
+        float px = x + glm::linearRand(0.0f, 1.0f);
+        float py = y + glm::linearRand(0.0f, 1.0f);
+
+        Color color = RenderSubPixel(px, py);
+
+        resultColor += (color / (float)samplesPerPixel); // Accumulate the color for each sample
+    }
+
+    return resultColor;
+}
+
+Color Renderer::RenderSubPixel(float x, float y)
+{
+    Ray ray = mScene->GetCamera().GetRay(x, y);
+    Color color = GetRadiance(ray);
+    return color;
+}
+
+Color Renderer::GetIrradiance(const Ray& ray)
+{
+    Intersection hit;
+    SceneObject* object = mScene->Intersect(ray, hit);
+    if (!object)
+        return Color(0.0f, 0.0f, 0.0f); // Return black if no intersection
+    
+    Color color(0.0f, 0.0f, 0.0f);
+    for (Light* pLight : mScene->GetLights())
+    {
+        // Calculate the irradiance from each light
+        Vector3f sourcePos;
+        Color l = pLight->GetRadiance(hit.position, sourcePos);
+
+        Ray shadowRay;
+        shadowRay.o = hit.position;
+        shadowRay.d = glm::normalize(sourcePos - hit.position);
+        shadowRay.mint = 0.001f; // Avoid self-intersection
+        shadowRay.maxt = glm::length(sourcePos - hit.position);
+
+        Intersection shadowHit;
+        if (mScene->Intersect(shadowRay, shadowHit))
+            continue; // If the shadow ray intersects an object, skip this light
+        
+        float cosTheta = glm::dot(hit.normal, shadowRay.d);
+        color += l * glm::max(cosTheta, 0.0f);
+    }
+
+    return color;
+}
+
+Color Renderer::GetRadiance(const Ray& ray)
+{
+    Intersection hit;
+    SceneObject* object = mScene->Intersect(ray, hit);
+    if (!object)
+        return Color(0.0f, 0.0f, 0.0f); // Return black if no intersection
+    
+    Material* pMaterial = object->GetMaterial();
+    Color color(0.0f, 0.0f, 0.0f);
+
+    Matrix3x3 localToWorld = MakeCoordinateSystem(hit.normal);
+    Matrix3x3 worldToLocal = glm::transpose(localToWorld);
+
+    Vector3f wo = worldToLocal * (-ray.d); // Outgoing direction in local space
+
+
+    for (Light* pLight : mScene->GetLights())
+    {
+        // Calculate the irradiance from each light
+        Vector3f sourcePos;
+        Color l = pLight->GetRadiance(hit.position, sourcePos);
+
+        Ray shadowRay;
+        shadowRay.o = hit.position;
+        shadowRay.d = glm::normalize(sourcePos - hit.position);
+        shadowRay.mint = 0.001f; // Avoid self-intersection
+        shadowRay.maxt = glm::length(sourcePos - hit.position);
+
+        Intersection shadowHit;
+        if (mScene->Intersect(shadowRay, shadowHit))
+            continue; // If the shadow ray intersects an object, skip this light
+        
+        Vector3f wi = worldToLocal * shadowRay.d; // Incoming direction in local space
+        float cosTheta = glm::dot(hit.normal, shadowRay.d);
+        Color brdf = pMaterial->brdf(wi, wo); // Assuming the BRDF returns a Color, we take the red channel as a representative value
+
+        color += brdf * l * glm::max(cosTheta, 0.0f);
+    }
 
     return color;
 }
