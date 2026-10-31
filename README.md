@@ -1,42 +1,135 @@
 # C++Renderer
 
-This is a starter C++17 renderer project built from a user-provided template.
+A C++17 CPU ray tracer with XML scene loading, Lambert diffuse materials,
+direct lighting and hard shadows. Rendering runs across multiple CPU threads,
+and MiniFB displays the pixel buffer.
 
-The project includes:
+## Features
 
-- GLM 1.0.3 (header-only mathematics library)
-- MiniFB 0.10.1 (window and pixel-buffer display)
-- CMake build configuration
+- Perspective camera with floating-point pixel coordinates.
+- Sphere, triangle and disk primitives with closest-hit ray intersections.
+- Scene objects with translation, Euler rotation and positive uniform scaling.
+- Directional, point and spot lights; distance attenuation for point and spot
+  lights and cone falloff for spotlights.
+- Shared, named Lambert materials with a diffuse BRDF of `albedo / pi`.
+- Direct illumination with cosine weighting and shadow-ray visibility tests.
+- Jittered supersampling antialiasing with four samples per pixel.
+- XML scene validation and automated scene loader tests.
+
+Dependencies are included in the repository: GLM 1.0.3 (header-only mathematics),
+MiniFB 0.10.1 (window and pixel-buffer display), and TinyXML-2 11.0.0 (XML parsing).
+The build requires CMake 3.16 or newer and a C++17 compiler.
 
 ## Building on Windows
 
-Install CMake and ensure that `cmake`, `gcc`, and `g++` are available in your `PATH`. Then double-click `build.bat`, or run the following command in a terminal:
+Install CMake and a MinGW toolchain, and ensure that `cmake`, `gcc`, `g++`, and
+`mingw32-make` are available in your `PATH`. The Windows helper uses the
+`MinGW Makefiles` generator. Run from the project directory:
 
 ```powershell
 .\build.bat
 ```
 
-The generated executable is located at `build\C++Renderer.exe`.
+Run the generated executable from the project directory:
+
+```powershell
+.\build\C++Renderer.exe
+```
+
+For a manual build with the same generator:
+
+```powershell
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
 
 ## Building on Linux or macOS
 
+Install CMake, a C/C++ compiler, and the platform development libraries required
+by MiniFB. From the project directory:
+
 ```sh
-./build.sh
+sh build.sh
+./build/C++Renderer
 ```
 
-The application entry point is `source/main.cpp`. The renderer uses GLM for camera and geometry calculations and MiniFB to display the ray-traced scene.
+## Running and configuration
+
+The application entry point is `source/main.cpp`. It currently creates:
+
+```cpp
+Renderer renderer(1920, 1080, 100, "scene/CornellBox.xml");
+```
+
+Change this call and rebuild to select another scene or resolution. There are
+currently no command-line options. The sample-count argument is stored by the
+renderer, but `Renderer::RenderPixel` currently uses a fixed count of **four**
+jittered samples per pixel; passing `100` does not change that count.
+
+Run from the project directory or the build directory so relative scene paths
+resolve correctly. CMake copies all three scene XML files into `build/scene`
+and refreshes them on subsequent builds after edits. For Visual Studio
+configurations, use the build directory as the working directory rather than
+its Debug/Release subdirectory.
+
+## Code structure
+
+| Component | Responsibility |
+| --- | --- |
+| `Camera` | Generate perspective rays for subpixel positions. |
+| `Ray` / `Intersection` | Store ray intervals and hit distance, position and normal. |
+| `Primitive` | Define the intersection interface for `Sphere`, `Triangle` and `Disk`. |
+| `SceneObject` | Own primitives, store object transforms and reference a material. |
+| `Scene` | Own objects, lights and named materials, store the camera and find the closest hit. |
+| `Light` | Evaluate directional, point and spot light contributions. |
+| `Material` | Evaluate surface BRDFs; currently implemented by `LambertMaterial`. |
+| `Renderer` | Trace camera and shadow rays, evaluate direct lighting and display pixels. |
+| `source/SceneLoader.cpp` | Parse and validate XML scenes through `Scene::LoadSceneFromXML`. |
+
+At each visible surface, the renderer sums unoccluded light contributions
+weighted by the material BRDF and the clamped normal/light cosine. Missed rays
+return black. The current renderer evaluates direct lighting only; CornellBox
+uses a point light and hard shadows, without indirect color bleeding.
 
 ## XML scenes
 
-Scene loading is implemented in `source/SceneLoader.cpp` through the existing
-`Scene::LoadSceneFromXML(filepath, width, height)` factory. The caller owns the
-returned Scene. `Renderer::Renderer` accepts a `const char* filepath` argument;
-`main` passes `scene/Scene02.xml`, two spheres with red and blue Lambert materials
-and a point light. `scene/CornellBox.xml` is an open-front Cornell box with five inward-facing
-walls, two spheres, a rotated box and one point light. `scene/Scene01.xml`
-retains the original camera, two-triangle square and sphere.
-The renderer uses direct lighting with hard shadows and evaluates assigned material BRDFs.
-Objects without a material keep the previous light-only response.
+`Scene::LoadSceneFromXML(filepath, width, height)` returns a scene owned by the
+caller. `Renderer` loads the scene in its constructor and deletes it in its
+destructor.
+
+| Scene | Contents |
+| --- | --- |
+| `scene/CornellBox.xml` | Default scene: five inward-facing walls, two spheres, a rotated triangle-based box, colored Lambert materials and one point light. |
+| `scene/Scene02.xml` | Two separated spheres with red and blue Lambert materials and one point light. |
+| `scene/Scene01.xml` | Legacy geometry fixture with a camera, a two-triangle square and a sphere; no lights or materials. |
+
+Assign a material to every object used for rendering. Although the loader
+accepts objects without a material, the active shading path dereferences the
+material pointer when evaluating a light contribution. It has no fallback
+material. Scene01 remains useful for loader and geometry tests; add materials
+and lights before using it as a lit example.
+
+A minimal lit scene:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Scene>
+    <Camera position="0 0 -5" target="0 0 0" up="0 1 0"
+            fov="45" near="0.1" far="100"/>
+    <Materials>
+        <LambertMaterial name="Red" albedo="0.8 0.08 0.05"/>
+    </Materials>
+    <SceneObjects>
+        <SceneObject material="Red">
+            <Sphere radius="1"/>
+        </SceneObject>
+    </SceneObjects>
+    <Lights>
+        <PointLight position="0 3 -3" intensity="20 20 20"
+                    attenuations="1 0 1"/>
+    </Lights>
+</Scene>
+```
 
 The XML format is case-sensitive:
 
@@ -68,15 +161,28 @@ Invalid files and scene parameters throw an exception with the filename and,
 for schema errors, the XML line number. The application prints the error and
 exits with a nonzero status.
 
-Run from the project directory or the build directory. CMake copies all three scene XML files
-into `build/scene` and refreshes it on subsequent builds after edits.
-For Visual Studio configurations, use the build directory as the working
-directory rather than its Debug/Release subdirectory.
+## Tests
 
-TinyXML-2 11.0.0 is vendored in `third_party/tinyxml2` under the zlib license.
-Upstream: https://github.com/leethomason/tinyxml2/tree/11.0.0
+CTest builds and registers `SceneLoaderTests` by default (`BUILD_TESTING=ON`).
+After configuring the project, build and run the checks:
 
-Build and run the scene loader checks:
+```sh
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
-    cmake --build build
-    ctest --test-dir build --output-on-failure
+For a multi-configuration generator, supply the configuration to both commands,
+for example `cmake --build build --config Debug` and
+`ctest --test-dir build -C Debug --output-on-failure`.
+
+The tests cover camera rays, geometry intersections, transforms, all three light
+types, attenuation and spotlight falloff, shared materials and forward references,
+Lambert BRDF values, bundled scenes, and rejection of invalid scene input.
+They do not verify rendered images or the full interactive rendering lifecycle.
+
+## Third-party licenses
+
+See the bundled GLM and MiniFB directories for their license terms.
+TinyXML-2 11.0.0 is vendored under the zlib license in
+`third_party/tinyxml2/LICENSE.txt`.
+[TinyXML-2 upstream](https://github.com/leethomason/tinyxml2/tree/11.0.0).
