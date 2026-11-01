@@ -15,6 +15,8 @@ class DirectionalLight : public Light
             : mDirection(glm::normalize(direction)), mRadiance(radiance) {}
 
         virtual Color GetRadiance(const Vector3f& p, Vector3f& sourcePos) const override;
+        const Vector3f& GetDirection() const { return mDirection; }
+        const Color& GetColor() const { return mRadiance; }
 
     private:
         Vector3f mDirection;
@@ -28,6 +30,9 @@ class PointLight : public Light
             : mPosition(position), mIntensity(intensity), mAttenuations(attenuations) {}
 
         virtual Color GetRadiance(const Vector3f& p, Vector3f& sourcePos) const override;
+        const Vector3f& GetPosition() const { return mPosition; }
+        const Color& GetColor() const { return mIntensity; }
+        const Vector3f& GetAttenuations() const { return mAttenuations; }
 
     private:
         Vector3f mPosition;
@@ -45,6 +50,12 @@ class SpotLight : public Light
             mCosOuterAngle(std::cos(glm::radians(outerAngle))), mAttenuations(attenuations) {}
 
         virtual Color GetRadiance(const Vector3f& p, Vector3f& sourcePos) const override;
+        const Vector3f& GetPosition() const { return mPosition; }
+        const Vector3f& GetDirection() const { return mDirection; }
+        const Color& GetColor() const { return mIntensity; }
+        const Vector3f& GetAttenuations() const { return mAttenuations; }
+        float GetCosInnerAngle() const { return mCosInnerAngle; }
+        float GetCosOuterAngle() const { return mCosOuterAngle; }
 
     private:
         Vector3f mDirection; 

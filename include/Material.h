@@ -18,6 +18,7 @@ class LambertMaterial : public Material
 
     public:
         LambertMaterial(const Color& albedo) : mAlbedo(albedo) {}
+        const Color& GetAlbedo() const { return mAlbedo; }
 
     private:
         Color mAlbedo;

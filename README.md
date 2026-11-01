@@ -4,6 +4,11 @@ A C++17 CPU ray tracer with XML scene loading, Lambert diffuse materials,
 direct and indirect lighting, and hard shadows. Rendering runs across multiple CPU threads,
 and MiniFB displays the pixel buffer.
 
+An independent OpenGL 3.3 realtime backend reads the same XML scenes and Lambert
+materials. The original `Renderer` constructor, `Run()`, ray intersections and
+CPU path tracing implementation are unchanged. Running without arguments still
+starts the original CPU renderer with its original settings.
+
 ## Features
 
 - Perspective camera with floating-point pixel coordinates.
@@ -16,10 +21,17 @@ and MiniFB displays the pixel buffer.
 - Recursive indirect lighting with configurable depth limits and Russian roulette termination.
 - Jittered supersampling antialiasing with configurable samples per pixel.
 - XML scene validation and automated scene loader tests.
+- Optional GPU rasterization with interactive camera controls, 4x MSAA,
+  directional/point/spot lighting, and shadow maps.
 
 Dependencies are included in the repository: GLM 1.0.3 (header-only mathematics),
 MiniFB 0.10.1 (window and pixel-buffer display), and TinyXML-2 11.0.0 (XML parsing).
 The build requires CMake 3.16 or newer and a C++17 compiler.
+GLFW 3.4 and its bundled header-only GLAD are also vendored under
+`third_party/glfw`; no dependency downloads are needed at configure time.
+The OpenGL backend requires an OpenGL 3.3-capable driver. Linux builds also need
+the GLFW platform development packages (X11/Wayland); either platform can be
+disabled with GLFW's CMake options when only the other is installed.
 
 ## Render examples
 
@@ -74,17 +86,70 @@ sh build.sh
 
 ## Running and configuration
 
-The application entry point is `source/main.cpp`. It currently creates:
+The application entry point is `source/main.cpp`. With no arguments it creates:
 
 ```cpp
 Renderer renderer(1920, 1080, 3, 15, 1000, "scene/CornellBox.xml");
 ```
 
-Change this call and rebuild to select another scene or resolution. There are
-currently no command-line options. The arguments specify width, height, minimum
+The constructor arguments specify width, height, minimum
 depth for Russian roulette, maximum recursion depth, samples per pixel and the
 scene path. This example uses 1000 jittered samples per pixel, starts Russian
 roulette at depth 3 and sets the maximum depth to 15.
+
+Run realtime OpenGL from the project or build directory:
+
+```powershell
+.\build\C++Renderer.exe --renderer opengl
+.\build\C++Renderer.exe --renderer opengl --scene scene/Scene02.xml --width 1280 --height 720
+```
+
+Hold the right mouse button to look; use WASD to move, Q/E to move down/up,
+left Shift to move faster, R to reset to the XML camera, and Escape to close.
+The window title shows FPS. Resizing updates the viewport and projection;
+minimizing suspends drawing until the framebuffer is available again.
+
+Select the original CPU backend explicitly, with optional render settings:
+
+```powershell
+.\build\C++Renderer.exe --renderer cpu --scene scene/CornellBox.xml --samples 1000 --min-depth 3 --max-depth 15
+```
+
+Use `--help` for all options. `--renderer cpu` is the default. A CPU-only build
+keeps GLFW and OpenGL out of the executable:
+
+```sh
+cmake -S . -B build-cpu -DRENDERER_ENABLE_OPENGL=OFF
+cmake --build build-cpu
+```
+
+The GPU backend tessellates spheres/disks once, uploads world-space geometry,
+and evaluates the same Lambert direct-lighting and spotlight falloff formulas.
+It accumulates lights in separate passes without a fixed light-count limit.
+Static shadow maps are built once per light: one 1024x1024 depth texture for
+directional lights, or six 1024x1024 cube faces for point/spot lights (including
+wide spotlight cones). `--no-shadows` disables these maps. Memory and startup
+cost increase with the number of shadow-casting lights.
+
+Realtime rendering provides direct illumination; recursive indirect lighting
+and color bleeding remain features of the CPU path tracer. Tessellation and
+shadow-map resolution/bias also cause differences from analytic CPU intersections.
+Both backends output linear color without an added gamma/tone-mapping step.
+OpenGL uses neutral albedo 0.8 for legacy objects without a material; scenes with
+no lights render black. Unsupported future material/primitive types fail with an
+explicit error rather than being silently skipped.
+
+For a finite hidden-window GPU check or a PPM screenshot:
+
+```powershell
+.\build\C++Renderer.exe --renderer opengl --width 640 --height 360 --hidden --frames 3 --screenshot build/opengl.ppm
+```
+
+Hidden rendering still requires a working graphics driver and desktop/display
+server. `--hidden` and `--screenshot` require a positive `--frames` limit.
+Shaders are copied into `build/shaders`; the executable uses that configured
+absolute directory, including for multi-configuration builds. If relocating a
+build, reconfigure it to refresh the resource path.
 
 Run from the project directory or the build directory so relative scene paths
 resolve correctly. CMake copies all three scene XML files into `build/scene`
@@ -104,6 +169,9 @@ its Debug/Release subdirectory.
 | `Light` | Evaluate directional, point and spot light contributions. |
 | `Material` | Evaluate surface BRDFs; currently implemented by `LambertMaterial`. |
 | `Renderer` | Trace camera, shadow and indirect rays, evaluate lighting and display pixels. |
+| `OpenGLRenderer` | Own the GLFW context, GPU buffers/shadows and interactive render loop. |
+| `SceneGpuAdapter` | Convert scene geometry, materials and lights to GPU upload data without OpenGL dependencies. |
+| `GLShader` / `shaders/` | Compile GLSL programs and implement direct lighting and shadow depth. |
 | `source/SceneLoader.cpp` | Parse and validate XML scenes through `Scene::LoadSceneFromXML`. |
 
 At each visible surface, the renderer sums unoccluded light contributions
@@ -201,9 +269,33 @@ types, attenuation and spotlight falloff, shared materials and forward reference
 Lambert BRDF values, bundled scenes, and rejection of invalid scene input.
 They do not verify rendered images or the full interactive rendering lifecycle.
 
+`SceneGpuAdapterTests` additionally verifies world transforms against CPU
+intersections, sphere radius/winding, rotated disks, material colors, and light
+parameter conversion without a GPU. To opt into a real OpenGL context/shader/draw
+smoke test on a machine with a GPU/display:
+
+```sh
+cmake -S . -B build -DRENDERER_TEST_OPENGL=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+`OpenGLSmokeTest` draws three hidden frames and writes `build/opengl-smoke.ppm`.
+`OpenGLLightsSmokeTest` exercises all three light types, multiple additive light
+passes, rotated triangles/disks and spheres, writing `build/opengl-lights.ppm`.
+
+`RendererShutdownTests` simulates closing a CPU render during active sampling,
+through both MiniFB event paths, and reopening the same renderer. CPU workers are
+cancelled and joined before the pixel buffer or scene can be destroyed. The test
+uses a window substitute and does not require a display.
+
 ## Third-party licenses
 
 See the bundled GLM and MiniFB directories for their license terms.
 TinyXML-2 11.0.0 is vendored under the zlib license in
 `third_party/tinyxml2/LICENSE.txt`.
 [TinyXML-2 upstream](https://github.com/leethomason/tinyxml2/tree/11.0.0).
+
+GLFW 3.4 uses the zlib/libpng license in `third_party/glfw/LICENSE.md`.
+The bundled GLAD loader and Khronos header terms are documented in
+`third_party/OPENGL-NOTICES.md`.

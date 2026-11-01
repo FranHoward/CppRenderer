@@ -2,6 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run C++Renderer (OpenGL Realtime)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/C++Renderer.exe",
+            "args": ["--renderer", "opengl", "--width", "1280", "--height", "720"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "D:/Files/C++ Setup/ucrt64/bin/gdb.exe",
+            "preLaunchTask": "Build C++Renderer"
+        },
+        {
             "name": "Run C++Renderer",
             "type": "cppdbg",
             "request": "launch",

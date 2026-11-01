@@ -4,6 +4,11 @@ void Camera::Initialize(const Vector3f& position, const Vector3f& target,
     const Vector3f& up, float fov, float n, float f, float w, float h)
 {
     mPosition = position;
+    mTarget = target;
+    mUp = up;
+    mFov = fov;
+    mNear = n;
+    mFar = f;
 
     // Find the left-handed view matrix using the position, target, and up vector
     Matrix4x4 viewMatrix = glm::lookAtLH(mPosition, target, up);

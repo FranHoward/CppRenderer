@@ -45,6 +45,7 @@ class Scene
         }
 
         const std::vector<Light*>& GetLights() const { return mLights; }
+        const std::vector<SceneObject*>& GetSceneObjects() const { return mSceneObjects; }
 
     private: 
         Camera mCamera;

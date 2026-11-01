@@ -29,6 +29,7 @@ class Renderer
         int mMinDepth = 3;
         
         std::atomic<int> mCurrentPixelIndex = 0;
+        std::atomic<bool> mStopRequested = false;
 
         Scene* mScene = nullptr;
 };

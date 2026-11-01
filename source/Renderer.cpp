@@ -4,12 +4,14 @@
 #include <MiniFB.h>
 #include <thread>
 #include <vector>
+#include <algorithm>
+#include <memory>
 
 
 Renderer::Renderer(int viewportWidth, int viewportHeight, int minDepth, int maxDepth, int samplesPerPixel, 
     const char* filepath)
     : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight), mSamplesPerPixel(samplesPerPixel), 
-    mMinDepth(minDepth), mMaxDepth(maxDepth)
+    mMaxDepth(maxDepth), mMinDepth(minDepth)
 {
     mCurrentPixelIndex = 0;
 
@@ -24,6 +26,8 @@ Renderer::~Renderer()
 
 void Renderer::Run()
 {
+    // Buffer ownership stays on the calling thread until every worker has joined.
+    auto buffer = std::make_unique<uint32_t[]>(static_cast<size_t>(mViewportWidth) * mViewportHeight);
     struct mfb_window* window = mfb_open_ex("C++ Renderer", mViewportWidth, mViewportHeight, MFB_WF_RESIZABLE);
 
     if (window == NULL)
@@ -31,33 +35,50 @@ void Renderer::Run()
 
     // Color of every pixel in the window is expressed as a 32-bit unsigned integer in the format 0xAARRGGBB
     // where AA is the alpha channel, RR is the red channel, GG is the green channel, and BB is the blue channel.
-    mBuffer = (uint32_t*)malloc(mViewportWidth * mViewportHeight * 4);
-
-    std::thread RenderThread(&Renderer::RunRenderThread, this);
-    RenderThread.detach(); // Detach the thread to allow it to run independently
-
-    int numThreads = std::thread::hardware_concurrency();
-    std::vector<std::thread> RenderThreads(numThreads);
-
-    for (int i = 0; i < numThreads; i++)
+    mBuffer = buffer.get();
+    mCurrentPixelIndex = 0;
+    mStopRequested = false;
+    std::vector<std::thread> workers;
+    auto stopWorkers = [&]()
     {
-        RenderThreads[i] = std::thread(&Renderer::RunRenderThread, this);
-        RenderThreads[i].detach(); // Detach the thread to allow it to run independently
-    }
-    // Present the buffer to the window
-    mfb_update_state state;
-    do
+        mStopRequested = true;
+        for (auto& worker : workers)
+            if (worker.joinable()) worker.join();
+        mBuffer = nullptr;
+    };
+    auto closeWindow = [&]()
     {
-        state = mfb_update_ex(window, mBuffer, mViewportWidth, mViewportHeight);
-
-        if (state != MFB_STATE_OK)
-            break;
+        if (window)
+        {
+            mfb_close(window);
+            mfb_update_events(window);
+            window = nullptr;
+        }
+    };
+    try
+    {
+        const unsigned numThreads = std::max(1u, std::thread::hardware_concurrency());
+        workers.reserve(numThreads);
+        for (unsigned i = 0; i < numThreads; ++i)
+            workers.emplace_back(&Renderer::RunRenderThread, this);
+        do
+        {
+            const auto state = mfb_update_ex(window, mBuffer, mViewportWidth, mViewportHeight);
+            if (state == MFB_STATE_EXIT) { window = nullptr; break; }
+            if (state != MFB_STATE_OK) break;
+            // MiniFB destroys the window itself when either event call detects close.
+            if (!mfb_wait_sync(window)) { window = nullptr; break; }
+        }
+        while (true);
     }
-    while (mfb_wait_sync(window));
-
-    free(mBuffer);
-    mBuffer = NULL;
-    window = NULL;
+    catch (...)
+    {
+        stopWorkers();
+        closeWindow();
+        throw;
+    }
+    stopWorkers();
+    closeWindow();
 }
 
 Color Renderer::RenderPixel(int x, int y)
@@ -68,6 +89,7 @@ Color Renderer::RenderPixel(int x, int y)
 
     for (int i = 0; i < samplesPerPixel; i++)
     {
+        if (mStopRequested) break;
         float px = x + glm::linearRand(0.0f, 1.0f);
         float py = y + glm::linearRand(0.0f, 1.0f);
 
@@ -119,6 +141,7 @@ Color Renderer::GetIrradiance(const Ray& ray)
 
 Color Renderer::GetRadiance(const Ray& ray, int depth)
 {
+    if (mStopRequested) return Color(0.0f);
     if (depth > mMaxDepth)
         return Color(0.0f, 0.0f, 0.0f); // Return black if the maximum recursion depth is exceeded
 
@@ -190,7 +213,7 @@ Color Renderer::GetRadiance(const Ray& ray, int depth)
 void Renderer::RunRenderThread()
 {
     // Read the next pixel on the current viewport
-    while (true)
+    while (!mStopRequested)
     {
         int pixelIndex = mCurrentPixelIndex.fetch_add(1);
         if (pixelIndex >= mViewportWidth * mViewportHeight)

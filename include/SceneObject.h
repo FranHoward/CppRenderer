@@ -30,6 +30,7 @@ class SceneObject
 
         void SetMaterial(Material* material) { mMaterial = material; }
         Material* GetMaterial() const { return mMaterial; }
+        const std::vector<Primitive*>& GetPrimitives() const { return mPrimitives; }
 
     private:
         Matrix4x4 mObjectToWorld;
