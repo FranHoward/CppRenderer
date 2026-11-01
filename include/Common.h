@@ -99,7 +99,7 @@ inline Matrix3x3 MakeCoordinateSystem(const Vector3f& w)
 {
     Vector3f u(1.0f, 0.0f, 0.0f);
 
-    if (glm::dot(w, u) > 0.999f)
+    if (glm::abs(glm::dot(w, u)) > 0.999f)
     {
         u = Vector3f(0.0f, 1.0f, 0.0f);
     }

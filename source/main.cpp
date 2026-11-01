@@ -5,7 +5,7 @@ int main()
 {
     try
     {
-        Renderer renderer(1920, 1080, 100, "scene/CornellBox.xml"); // Set the desired viewport width and height
+        Renderer renderer(1920, 1080, 3, 15, 1000, "scene/CornellBox.xml"); // Set the desired viewport width and height
         renderer.Run();
     }
     catch (const std::exception& error)

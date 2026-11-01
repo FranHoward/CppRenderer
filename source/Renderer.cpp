@@ -5,13 +5,15 @@
 #include <thread>
 #include <vector>
 
-Renderer::Renderer(int viewportWidth, int viewportHeight, int samplesPerPixel, const char* filepath)
-    : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight), mSamplesPerPixel(samplesPerPixel)
+
+Renderer::Renderer(int viewportWidth, int viewportHeight, int minDepth, int maxDepth, int samplesPerPixel, 
+    const char* filepath)
+    : mViewportWidth(viewportWidth), mViewportHeight(viewportHeight), mSamplesPerPixel(samplesPerPixel), 
+    mMinDepth(minDepth), mMaxDepth(maxDepth)
 {
     mCurrentPixelIndex = 0;
 
     mScene = Scene::LoadSceneFromXML(filepath, mViewportWidth, mViewportHeight);
-
 }
 
 Renderer::~Renderer()
@@ -61,7 +63,7 @@ void Renderer::Run()
 Color Renderer::RenderPixel(int x, int y)
 {
     // SSAA
-    static const int samplesPerPixel = 4;
+    const int samplesPerPixel = mSamplesPerPixel;
     Color resultColor = Color(0.0f, 0.0f, 0.0f);
 
     for (int i = 0; i < samplesPerPixel; i++)
@@ -80,7 +82,7 @@ Color Renderer::RenderPixel(int x, int y)
 Color Renderer::RenderSubPixel(float x, float y)
 {
     Ray ray = mScene->GetCamera().GetRay(x, y);
-    Color color = GetRadiance(ray);
+    Color color = GetRadiance(ray, 0); // Start with depth 0 for the initial ray
     return color;
 }
 
@@ -115,8 +117,21 @@ Color Renderer::GetIrradiance(const Ray& ray)
     return color;
 }
 
-Color Renderer::GetRadiance(const Ray& ray)
+Color Renderer::GetRadiance(const Ray& ray, int depth)
 {
+    if (depth > mMaxDepth)
+        return Color(0.0f, 0.0f, 0.0f); // Return black if the maximum recursion depth is exceeded
+
+    static const float survivalProbability = 0.8f; // Probability of continuing the path
+    float rewardFactor = 1.0f;
+    if (depth >= mMinDepth)
+    {
+        float k = Random01();
+        if (k > survivalProbability)
+            return Color(0.0f, 0.0f, 0.0f); // Terminate the path with a probability of 1 - survivalProbability
+        rewardFactor = 1.0f / survivalProbability; // Scale the color by the survival probability
+    }
+    
     Intersection hit;
     SceneObject* object = mScene->Intersect(ray, hit);
     if (!object)
@@ -153,8 +168,23 @@ Color Renderer::GetRadiance(const Ray& ray)
 
         color += brdf * l * glm::max(cosTheta, 0.0f);
     }
+    
+    {
+        const float theta = Random(0.0f, PI * 0.5f); // Sample within the hemisphere
+        const float phi = Random(0.0f, 2.0f * PI);
+        const Vector3f wi = GetSphericalCoordinate(theta, phi); // Sampled incoming direction in local space
+        
+        Color brdf = pMaterial->brdf(wo, wi); // Assuming the BRDF returns a Color, we take the red channel as a representative value
+        Ray r;
+        r.d = localToWorld * wi;
+        r.o = hit.position;
+        r.mint = 0.001f; // Avoid self-intersection
+        Color li = GetRadiance(r, depth + 1); // Recursive call to get the radiance from the sampled direction
 
-    return color;
+        color += brdf * li * cosf(theta) * sinf(theta) * PI * PI; // Multiply by the PDF of the sampling method (cosine-weighted hemisphere sampling)
+    }
+
+    return color * rewardFactor; // Scale the color by the survival probability to account for Russian roulette termination
 }
 
 void Renderer::RunRenderThread()
